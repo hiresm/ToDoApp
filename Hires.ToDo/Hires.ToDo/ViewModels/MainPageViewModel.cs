@@ -7,7 +7,10 @@ using Hires.ToDo.Services;
 using Microsoft.CognitiveServices.Speech;
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Threading.Tasks;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.UI.Xaml;
 
@@ -53,7 +56,7 @@ namespace Hires.ToDo.ViewModels
             RemoveCommand = new RelayCommand(RemoveItem);
             SettingCommand = new RelayCommand(NavigateSetting);
             ListenCommand = new RelayCommand(Listen);
-            ReadCommand = new RelayCommand(Read);
+            ReadCommand = new RelayCommand(Read, CanRead);
 
             Items = new NotifyTaskCompletion<ObservableCollection<Item>>(persistationService.LoadData<ObservableCollection<Item>>(FileName));
         }
@@ -84,9 +87,34 @@ namespace Hires.ToDo.ViewModels
             navigationService.NavigateTo("SettingPage");
         }
 
-        private void Read()
+        private async void Read()
         {
-            throw new NotImplementedException();
+            using (var synthesizer = new SpeechSynthesizer(SpeechConfig.FromSubscription(settingsService.Subscription, settingsService.Region), null))
+            {
+                using (var result = await synthesizer.SpeakTextAsync("How are you").ConfigureAwait(false))
+                {
+                    if(result.Reason == ResultReason.SynthesizingAudioCompleted)
+                    {
+                        using (var audioStream = AudioDataStream.FromResult(result))
+                        {
+                            var path = Path.Combine(ApplicationData.Current.LocalFolder.Path, "outputaudio.wav");
+                            await audioStream.SaveToWaveFileAsync(path);
+                            var player = new MediaPlayer();
+                            player.Source = MediaSource.CreateFromStorageFile(await StorageFile.GetFileFromPathAsync(path));
+                            player.Play();
+                        }
+                    }
+                    else
+                    {
+                        var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                    }
+                }
+            }
+        }
+
+        private bool CanRead()
+        {
+            return SelectedItem != null;
         }
 
         private async void Listen()
