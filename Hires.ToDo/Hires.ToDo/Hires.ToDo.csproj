@@ -123,6 +123,7 @@
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Include="Helpers\NotifyTaskCompletion.cs" />
+    <Compile Include="Helpers\ObservableCollectionWithItemNotify.cs" />
     <Compile Include="Models\LanguageModel.cs" />
     <Compile Include="Models\RegionModel.cs" />
     <Compile Include="Models\Item.cs" />

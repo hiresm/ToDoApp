@@ -23,7 +23,7 @@ namespace Hires.ToDo.ViewModels
         private readonly IPersistationService persistationService;
         private readonly ISettingsService settingsService;
         private readonly INavigationService navigationService;
-        private readonly ApplicationDataContainer applicationDataContainer;
+        private readonly MediaPlayer mediaPlayer;
 
         private TaskCompletionSource<bool> stopCompletionSource;
         private bool canRead;
@@ -36,12 +36,18 @@ namespace Hires.ToDo.ViewModels
         public RelayCommand ListenCommand { get; set; }
         public RelayCommand ReadCommand { get; set; }
 
-        public NotifyTaskCompletion<ObservableCollection<Item>> Items { get; set; }
+        public NotifyTaskCompletion<ObservableCollectionWithItemNotify<Item>> Items { get; set; }
+
         private Item selectedItem;
         public Item SelectedItem
         {
             get { return selectedItem; }
-            set { selectedItem = value; RaisePropertyChanged(); }
+            set
+            {
+                selectedItem = value;
+                RaisePropertyChanged();
+                ReadCommand.RaiseCanExecuteChanged();
+            }
         }
 
         public MainPageViewModel(INavigationService navigationService, IPersistationService persistationService, ISettingsService settingsService)
@@ -49,6 +55,8 @@ namespace Hires.ToDo.ViewModels
             this.persistationService = persistationService;
             this.settingsService = settingsService;
             this.navigationService = navigationService;
+
+            this.mediaPlayer = new MediaPlayer();
 
             Application.Current.Suspending += Current_Suspending;
 
@@ -58,7 +66,7 @@ namespace Hires.ToDo.ViewModels
             ListenCommand = new RelayCommand(Listen);
             ReadCommand = new RelayCommand(Read, CanRead);
 
-            Items = new NotifyTaskCompletion<ObservableCollection<Item>>(persistationService.LoadData<ObservableCollection<Item>>(FileName));
+            Items = new NotifyTaskCompletion<ObservableCollectionWithItemNotify<Item>>(persistationService.LoadData<ObservableCollectionWithItemNotify<Item>>(FileName));
         }
 
         private void Current_Suspending(object sender, Windows.ApplicationModel.SuspendingEventArgs e)
@@ -89,7 +97,7 @@ namespace Hires.ToDo.ViewModels
 
         private async void Read() //Ugly code
         {
-            using (var synthesizer = new SpeechSynthesizer(SpeechConfig.FromSubscription(settingsService.Subscription, settingsService.Region), null))
+            using (var synthesizer = new SpeechSynthesizer(GetSpeechConfig(), null))
             {
                 using (var result = await synthesizer.SpeakTextAsync(SelectedItem.Text).ConfigureAwait(false))
                 {
@@ -99,14 +107,13 @@ namespace Hires.ToDo.ViewModels
                         {
                             var path = Path.Combine(ApplicationData.Current.LocalFolder.Path, "outputaudio.wav");
                             await audioStream.SaveToWaveFileAsync(path);
-                            var player = new MediaPlayer();
-                            player.Source = MediaSource.CreateFromStorageFile(await StorageFile.GetFileFromPathAsync(path));
-                            player.Play();
+                            mediaPlayer.Source = MediaSource.CreateFromStorageFile(await StorageFile.GetFileFromPathAsync(path));
+                            mediaPlayer.Play();
                         }
                     }
                     else
                     {
-                        var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                        var cancellation = SpeechSynthesisCancellationDetails.FromResult(result); //TODO Notify user
                     }
                 }
             }
