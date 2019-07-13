@@ -87,11 +87,11 @@ namespace Hires.ToDo.ViewModels
             navigationService.NavigateTo("SettingPage");
         }
 
-        private async void Read()
+        private async void Read() //Ugly code
         {
             using (var synthesizer = new SpeechSynthesizer(SpeechConfig.FromSubscription(settingsService.Subscription, settingsService.Region), null))
             {
-                using (var result = await synthesizer.SpeakTextAsync("How are you").ConfigureAwait(false))
+                using (var result = await synthesizer.SpeakTextAsync(SelectedItem.Text).ConfigureAwait(false))
                 {
                     if(result.Reason == ResultReason.SynthesizingAudioCompleted)
                     {
@@ -117,7 +117,7 @@ namespace Hires.ToDo.ViewModels
             return SelectedItem != null;
         }
 
-        private async void Listen()
+        private async void Listen() //Ugly code
         {
             string text;
             var mediaCapture = new Windows.Media.Capture.MediaCapture();

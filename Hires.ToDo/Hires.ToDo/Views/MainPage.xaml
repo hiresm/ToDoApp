@@ -5,10 +5,15 @@
     xmlns:local="using:Hires.ToDo"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:Hires.ToDo.Views.Converters"
     mc:Ignorable="d"
     DataContext="{Binding MainPageInstance, Source={StaticResource Locator}}"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
+    <Page.Resources>
+        <converters:DateConverter x:Key="DateConverter" />
+    </Page.Resources>
+    
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -37,7 +42,7 @@
                         <DataTemplate>
                             <StackPanel Margin="0,10,0,0">
                                 <TextBlock Height="20" Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Created}" Foreground="DarkGray" />
+                                <TextBlock Text="{Binding Created, Converter={StaticResource DateConverter}}" Foreground="DarkGray" />
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
