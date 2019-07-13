@@ -25,11 +25,6 @@ namespace Hires.ToDo.ViewModels
         private readonly INavigationService navigationService;
         private readonly MediaPlayer mediaPlayer;
 
-        private TaskCompletionSource<bool> stopCompletionSource;
-        private bool canRead;
-        private bool canListen;
-
-
         public RelayCommand AddCommand { get; set; }
         public RelayCommand RemoveCommand { get; set; }
         public RelayCommand SettingCommand { get; set; }
@@ -46,7 +41,7 @@ namespace Hires.ToDo.ViewModels
             {
                 selectedItem = value;
                 RaisePropertyChanged();
-                ReadCommand.RaiseCanExecuteChanged();
+                CanExecuteChanged();
             }
         }
 
@@ -61,10 +56,10 @@ namespace Hires.ToDo.ViewModels
             Application.Current.Suspending += Current_Suspending;
 
             AddCommand = new RelayCommand(AddItem);
-            RemoveCommand = new RelayCommand(RemoveItem);
+            RemoveCommand = new RelayCommand(RemoveItem, IsItemSelected);
             SettingCommand = new RelayCommand(NavigateSetting);
-            ListenCommand = new RelayCommand(Listen);
-            ReadCommand = new RelayCommand(Read, CanRead);
+            ListenCommand = new RelayCommand(Listen, IsItemSelected);
+            ReadCommand = new RelayCommand(Read, IsItemSelected);
 
             Items = new NotifyTaskCompletion<ObservableCollectionWithItemNotify<Item>>(persistationService.LoadData<ObservableCollectionWithItemNotify<Item>>(FileName));
         }
@@ -75,6 +70,13 @@ namespace Hires.ToDo.ViewModels
         }
 
         #region Commands
+        private void CanExecuteChanged()
+        {
+            ReadCommand.RaiseCanExecuteChanged();
+            RemoveCommand.RaiseCanExecuteChanged();
+            ListenCommand.RaiseCanExecuteChanged();
+        }
+
         private void RemoveItem()
         {
             if (Items.Result == null) return;
@@ -82,12 +84,18 @@ namespace Hires.ToDo.ViewModels
             Items.Result.Remove(SelectedItem);
         }
 
+        private bool IsItemSelected()
+        {
+            return SelectedItem != null;
+        }
+
         private void AddItem()
         {
             if (Items.Result == null) return;
 
-            SelectedItem = new Item { Created = DateTime.Now };
-            Items.Result.Insert(0, SelectedItem);
+            var item = new Item { Created = DateTime.Now };
+            Items.Result.Insert(0, item);
+            SelectedItem = item;
         }
 
         private void NavigateSetting()
@@ -97,6 +105,8 @@ namespace Hires.ToDo.ViewModels
 
         private async void Read() //Ugly code
         {
+            if (string.IsNullOrEmpty(SelectedItem.Text)) return;
+
             using (var synthesizer = new SpeechSynthesizer(GetSpeechConfig(), null))
             {
                 using (var result = await synthesizer.SpeakTextAsync(SelectedItem.Text).ConfigureAwait(false))
@@ -117,11 +127,6 @@ namespace Hires.ToDo.ViewModels
                     }
                 }
             }
-        }
-
-        private bool CanRead()
-        {
-            return SelectedItem != null;
         }
 
         private async void Listen() //Ugly code
@@ -150,8 +155,6 @@ namespace Hires.ToDo.ViewModels
 
         private async Task<string> RunRecognizer(SpeechRecognizer speechRecognizer)
         {
-            
-            
             var result = await speechRecognizer.RecognizeOnceAsync().ConfigureAwait(false);
             return result.Text;
             //EventHandler<SpeechRecognitionCanceledEventArgs> canceledHandler = (sender, e) => CanceledEventHandler(e, source);
