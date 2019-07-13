@@ -12,6 +12,7 @@
 
     <Page.Resources>
         <converters:DateConverter x:Key="DateConverter" />
+        <converters:VisibilityConverter x:Key="VisibilityConverter" />
     </Page.Resources>
     
     <Grid>
@@ -26,7 +27,7 @@
             <AppBarButton Label="Remove" Icon="Remove"  Command="{Binding RemoveCommand}" />
             <AppBarButton Label="Setting" Icon="Setting"  Command="{Binding SettingCommand}" />
             <AppBarSeparator />
-            <AppBarButton Label="Listen" Icon="Microphone"  Command="{Binding ListenCommand}" />
+            <AppBarButton Label="{Binding ListenLabel}" Icon="Microphone" Command="{Binding ListenCommand}" />
             <AppBarButton Label="Read" Icon="Volume"  Command="{Binding ReadCommand}" />
         </StackPanel>
 

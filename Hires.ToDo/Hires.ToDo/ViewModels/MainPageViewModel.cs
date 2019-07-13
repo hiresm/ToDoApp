@@ -1,12 +1,12 @@
 ﻿using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
+using GalaSoft.MvvmLight.Threading;
 using GalaSoft.MvvmLight.Views;
 using Hires.ToDo.Helpers;
 using Hires.ToDo.Models;
 using Hires.ToDo.Services;
 using Microsoft.CognitiveServices.Speech;
 using System;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
 using Windows.Media.Core;
@@ -24,6 +24,7 @@ namespace Hires.ToDo.ViewModels
         private readonly ISettingsService settingsService;
         private readonly INavigationService navigationService;
         private readonly MediaPlayer mediaPlayer;
+        private readonly TaskCompletionSource<int> stopListening;
 
         public RelayCommand AddCommand { get; set; }
         public RelayCommand RemoveCommand { get; set; }
@@ -32,6 +33,31 @@ namespace Hires.ToDo.ViewModels
         public RelayCommand ReadCommand { get; set; }
 
         public NotifyTaskCompletion<ObservableCollectionWithItemNotify<Item>> Items { get; set; }
+
+        private bool isListening;
+        public bool IsListening
+        {
+            set
+            {
+                isListening = value;
+                if (isListening) ListenLabel = "Stop";
+                else ListenLabel = "Start";
+            }
+        }
+
+        private string listenLabel;
+        public string ListenLabel
+        {
+            get
+            {
+                return listenLabel;
+            }
+            set
+            {
+                listenLabel = value;
+                RaisePropertyChanged();
+            }
+        }
 
         private Item selectedItem;
         public Item SelectedItem
@@ -51,7 +77,10 @@ namespace Hires.ToDo.ViewModels
             this.settingsService = settingsService;
             this.navigationService = navigationService;
 
-            this.mediaPlayer = new MediaPlayer();
+            mediaPlayer = new MediaPlayer();
+            stopListening = new TaskCompletionSource<int>();
+
+            IsListening = false;
 
             Application.Current.Suspending += Current_Suspending;
 
@@ -131,18 +160,29 @@ namespace Hires.ToDo.ViewModels
 
         private async void Listen() //Ugly code
         {
-            string text;
+            if(isListening)
+            {
+                stopListening.TrySetResult(0);
+            }
+            else
+            {
+                await SetupCapturMedia();
+
+                using (var recognizer = new SpeechRecognizer(GetSpeechConfig()))
+                {
+                    await RunRecognizer(recognizer, stopListening).ConfigureAwait(false);
+                }
+            }
+            
+
+        }
+
+        private static async Task SetupCapturMedia()
+        {
             var mediaCapture = new Windows.Media.Capture.MediaCapture();
             var settings = new Windows.Media.Capture.MediaCaptureInitializationSettings();
             settings.StreamingCaptureMode = Windows.Media.Capture.StreamingCaptureMode.Audio;
             await mediaCapture.InitializeAsync(settings);
-
-            using (var recognizer = new SpeechRecognizer(GetSpeechConfig()))
-            {
-                text = await RunRecognizer(recognizer);
-            }
-
-            SelectedItem.Text = text;
         }
 
         private SpeechConfig GetSpeechConfig()
@@ -153,30 +193,67 @@ namespace Hires.ToDo.ViewModels
             return config;
         }
 
-        private async Task<string> RunRecognizer(SpeechRecognizer speechRecognizer)
+        private async Task RunRecognizer(SpeechRecognizer speechRecognizer, TaskCompletionSource<int> source)
         {
-            var result = await speechRecognizer.RecognizeOnceAsync().ConfigureAwait(false);
-            return result.Text;
-            //EventHandler<SpeechRecognitionCanceledEventArgs> canceledHandler = (sender, e) => CanceledEventHandler(e, source);
-            //EventHandler<SessionEventArgs> sessionStartedHandler = (sender, e) => SessionStartedEventHandler(e);
-            //EventHandler<SessionEventArgs> sessionStoppedHandler = (sender, e) => SessionStoppedEventHandler(e, source);
-            //EventHandler<RecognitionEventArgs> speechStartDetectedHandler = (sender, e) => SpeechDetectedEventHandler(e, "start");
-            //EventHandler<RecognitionEventArgs> speechEndDetectedHandler = (sender, e) => SpeechDetectedEventHandler(e, "end");
+            IsListening = !isListening;
+
+            EventHandler<SpeechRecognitionCanceledEventArgs> canceledHandler = (sender, e) => CanceledEventHandler(e, source);
+            EventHandler<SessionEventArgs> sessionStartedHandler = (sender, e) => SessionStartedEventHandler(e);
+            EventHandler<SessionEventArgs> sessionStoppedHandler = (sender, e) => SessionStoppedEventHandler(e, source);
+            EventHandler<RecognitionEventArgs> speechStartDetectedHandler = (sender, e) => SpeechDetectedEventHandler(e, "start");
+            EventHandler<RecognitionEventArgs> speechEndDetectedHandler = (sender, e) => SpeechDetectedEventHandler(e, "end");
+
+            speechRecognizer.Recognizing += SpeechRecognizer_Recognizing;
+            speechRecognizer.Canceled += canceledHandler;
+            speechRecognizer.SessionStarted += sessionStartedHandler;
+            speechRecognizer.SessionStopped += sessionStoppedHandler;
+            speechRecognizer.SpeechStartDetected += speechStartDetectedHandler;
+            speechRecognizer.SpeechEndDetected += speechEndDetectedHandler;
+
+            await speechRecognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+            await source.Task.ConfigureAwait(false);
+            await speechRecognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
+
+            speechRecognizer.Recognizing -= SpeechRecognizer_Recognizing;
+            speechRecognizer.Canceled -= canceledHandler;
+            speechRecognizer.SessionStarted -= sessionStartedHandler;
+            speechRecognizer.SessionStopped -= sessionStoppedHandler;
+            speechRecognizer.SpeechStartDetected -= speechStartDetectedHandler; 
+            speechRecognizer.SpeechEndDetected -= speechEndDetectedHandler;
+
+            DispatcherHelper.CheckBeginInvokeOnUI(() =>
+            {
+                IsListening = !isListening;
+            });
         }
 
-        //private void NotifyUser(string strMessage, NotifyType type)
-        //{
-        //    // If called from the UI thread, then update immediately.
-        //    // Otherwise, schedule a task on the UI thread to perform the update.
-        //    if (Dispatcher.HasThreadAccess)
-        //    {
-        //        UpdateStatus(strMessage, type);
-        //    }
-        //    else
-        //    {
-        //        var task = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => UpdateStatus(strMessage, type));
-        //    }
-        //}
+        private void SpeechRecognizer_Recognizing(object sender, SpeechRecognitionEventArgs e)
+        {
+            DispatcherHelper.CheckBeginInvokeOnUI(() =>
+            {
+                SelectedItem.Text = e.Result.Text;
+            });
+        }
+
+        private void SpeechDetectedEventHandler(RecognitionEventArgs e, string v)
+        {
+            
+        }
+
+        private void CanceledEventHandler(SpeechRecognitionCanceledEventArgs e, object source)
+        {
+            
+        }
+
+        private void SessionStoppedEventHandler(SessionEventArgs e, object source)
+        {
+
+        }
+
+        private void SessionStartedEventHandler(SessionEventArgs e)
+        {
+            
+        }
 
         #endregion
 

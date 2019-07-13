@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GalaSoft.MvvmLight.Threading;
+using System;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.UI.Xaml;
@@ -60,6 +61,8 @@ namespace Hires.ToDo
                 }
                 // Ensure the current window is active
                 Window.Current.Activate();
+
+                DispatcherHelper.Initialize();
             }
         }
 
