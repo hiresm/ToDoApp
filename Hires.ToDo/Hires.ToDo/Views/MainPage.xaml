@@ -13,6 +13,7 @@
     <Page.Resources>
         <converters:DateConverter x:Key="DateConverter" />
         <converters:VisibilityConverter x:Key="VisibilityConverter" />
+        <converters:RecognitionConverter x:Key="RecognitionConverter" />
     </Page.Resources>
     
     <Grid>
@@ -27,7 +28,7 @@
             <AppBarButton Label="Remove" Icon="Remove"  Command="{Binding RemoveCommand}" />
             <AppBarButton Label="Setting" Icon="Setting"  Command="{Binding SettingCommand}" />
             <AppBarSeparator />
-            <AppBarButton Label="{Binding ListenLabel}" Icon="Microphone" Command="{Binding ListenCommand}" />
+            <AppBarButton Label="{Binding IsListening, Converter={StaticResource RecognitionConverter}}" Icon="Microphone" Command="{Binding ListenCommand}" />
             <AppBarButton Label="Read" Icon="Volume"  Command="{Binding ReadCommand}" />
         </StackPanel>
 
@@ -59,7 +60,7 @@
         </Grid>
 
         <Grid Grid.Row="2" Background="LightGray">
-            
+            <TextBlock Text="{Binding Status}" HorizontalAlignment="Right" Margin="10,0" />
         </Grid>
     </Grid>
 </Page>
