@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Storage;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 
 namespace Hires.ToDo.ViewModels
@@ -147,9 +148,14 @@ namespace Hires.ToDo.ViewModels
 
         private async void Read() //Ugly code
         {
+            var speechConfig = await TryGetSpeechConfig();
+
+            if (speechConfig == null)
+                return;
+
             if (string.IsNullOrEmpty(SelectedItem.Text)) return;
 
-            using (var synthesizer = new SpeechSynthesizer(GetSpeechConfig(), null))
+            using (var synthesizer = new SpeechSynthesizer(speechConfig, null))
             {
                 using (var result = await synthesizer.SpeakTextAsync(SelectedItem.Text).ConfigureAwait(false))
                 {
@@ -180,16 +186,26 @@ namespace Hires.ToDo.ViewModels
             }
             else
             {
+                var speechConfig = await TryGetSpeechConfig();
+
+                if (speechConfig == null)
+                    return;
+
+                await SetupCapturMedia();
                 IsListening = true;
                 stopListening = new TaskCompletionSource<int>();
 
-                await SetupCapturMedia();
-
-                using (var recognizer = new SpeechRecognizer(GetSpeechConfig()))
+                using (var recognizer = new SpeechRecognizer(speechConfig))
                 {
                     await RunRecognizer(recognizer, stopListening).ConfigureAwait(false);
                 }
             }
+        }
+
+        private async Task DisplayMessage(string title, string content)
+        {
+            var messageDialog = new MessageDialog(content, title);
+            await messageDialog.ShowAsync();
         }
 
         private static async Task SetupCapturMedia()
@@ -200,9 +216,18 @@ namespace Hires.ToDo.ViewModels
             await mediaCapture.InitializeAsync(settings);
         }
 
-        private SpeechConfig GetSpeechConfig()
+        private async Task<SpeechConfig> TryGetSpeechConfig()
         {
-            var config = SpeechConfig.FromSubscription(settingsService.Subscription, settingsService.Region);
+            var subscription = settingsService.Subscription;
+            var region = settingsService.Region;
+
+            if (string.IsNullOrEmpty(subscription) || string.IsNullOrEmpty(region))
+            {
+                await DisplayMessage("Warning", "Application settings are required.");
+                return null;
+            }
+                
+            var config = SpeechConfig.FromSubscription(subscription, region);
             config.SpeechRecognitionLanguage = settingsService.Language;
             config.OutputFormat = OutputFormat.Detailed;
             config.EnableDictation();

@@ -12,7 +12,8 @@ namespace Hires.ToDo.Services
             {
                 if(language == null)
                 {
-                    language = ApplicationData.Current.LocalSettings.Values[SettingsKeys.Language].ToString();
+                    if (ApplicationData.Current.LocalSettings.Values.TryGetValue(SettingsKeys.Language, out var value))
+                        language = value.ToString();
                 }
 
                 return language;
@@ -26,7 +27,8 @@ namespace Hires.ToDo.Services
             {
                 if(subscription == null)
                 {
-                    subscription = ApplicationData.Current.LocalSettings.Values[SettingsKeys.SubscriptionKey].ToString();
+                    if (ApplicationData.Current.LocalSettings.Values.TryGetValue(SettingsKeys.SubscriptionKey, out var value))
+                        subscription = value.ToString();
                 }
 
                 return subscription;
@@ -40,7 +42,8 @@ namespace Hires.ToDo.Services
             {
                 if(region == null)
                 {
-                    region = ApplicationData.Current.LocalSettings.Values[SettingsKeys.Region].ToString();
+                    if (ApplicationData.Current.LocalSettings.Values.TryGetValue(SettingsKeys.Region, out var value))
+                        region = value.ToString();
                 }
 
                 return region;
